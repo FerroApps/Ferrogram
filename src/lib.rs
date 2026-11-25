@@ -22,3 +22,4 @@ pub mod remote;
 pub mod store;
 pub mod tray;
 pub mod ui;
+pub mod update;

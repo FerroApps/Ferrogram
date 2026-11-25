@@ -1,8 +1,8 @@
 #!/bin/sh
 # Ferrogram installer / updater (Linux x86_64, no root needed).
 #
-#   curl -fsSL https://raw.githubusercontent.com/Dasemu/Ferrogram/main/install.sh | sh
-#   curl -fsSL https://raw.githubusercontent.com/Dasemu/Ferrogram/main/install.sh | sh -s -- --uninstall
+#   curl -fsSL https://raw.githubusercontent.com/FerroApps/Ferrogram/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/FerroApps/Ferrogram/main/install.sh | sh -s -- --uninstall
 #
 # The same command installs and updates: it downloads the latest GitHub
 # Release, verifies its SHA-256 checksum and installs into the user's home:
@@ -17,7 +17,7 @@
 
 set -eu
 
-REPO="Dasemu/Ferrogram"
+REPO="FerroApps/Ferrogram"
 CRATE="ferrogram"
 APP_ID="dev.ferro.ferrogram"
 APP_NAME="Ferrogram"

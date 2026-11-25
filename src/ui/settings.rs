@@ -1,5 +1,5 @@
 //! Settings panel (background mode): close to tray, start minimized, launch
-//! at login, and the global notification mute.
+//! at login, the global notification mute and updates.
 
 use iced::widget::{button, column, container, row, text, toggler};
 use iced::{Alignment, Element, Length};
@@ -114,6 +114,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
             ]
             .spacing(4),
         )
+        .push(super::update::settings_section(app))
         .push(
             container(
                 button(text("Done").size(m.font_m))

@@ -617,3 +617,57 @@ pub fn scroll(p: Palette) -> impl Fn(&Theme, scrollable::Status) -> scrollable::
 pub fn tint(color: Color) -> impl Fn(&Theme, svg::Status) -> svg::Style {
     move |_, _| svg::Style { color: Some(color) }
 }
+
+/// Height of the "new version available" bar at the top of the window.
+pub const UPDATE_BAR_HEIGHT: f32 = 36.0;
+
+/// The update bar: the accent colour, like Telegram Desktop's update button.
+pub fn update_bar(p: Palette) -> impl Fn(&Theme) -> container::Style {
+    move |_| container::Style {
+        background: Some(Background::Color(p.accent)),
+        text_color: Some(p.accent_text),
+        ..container::Style::default()
+    }
+}
+
+/// A flat text button on the update bar (translucent white on hover).
+pub fn update_bar_button(
+    p: Palette,
+    strong: bool,
+) -> impl Fn(&Theme, button::Status) -> button::Style {
+    move |_, status| {
+        let base = if strong { 0.18 } else { 0.0 };
+        let a = match status {
+            button::Status::Hovered | button::Status::Pressed => base + 0.14,
+            _ => base,
+        };
+        button::Style {
+            background: (a > 0.0).then_some(Background::Color(Color::from_rgba(1.0, 1.0, 1.0, a))),
+            text_color: p.accent_text,
+            border: border::rounded(6.0),
+            shadow: Shadow::default(),
+            snap: true,
+        }
+    }
+}
+
+/// A secondary (outlined) button in dialogs.
+pub fn secondary_button(p: Palette) -> impl Fn(&Theme, button::Status) -> button::Style {
+    move |_, status| button::Style {
+        background: Some(Background::Color(match status {
+            button::Status::Hovered | button::Status::Pressed => p.bg_hover,
+            _ => Color::TRANSPARENT,
+        })),
+        text_color: match status {
+            button::Status::Disabled => p.text_muted,
+            _ => p.accent,
+        },
+        border: Border {
+            radius: 8.0.into(),
+            width: 1.0,
+            color: p.border,
+        },
+        shadow: Shadow::default(),
+        snap: true,
+    }
+}

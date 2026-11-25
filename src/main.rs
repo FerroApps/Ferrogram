@@ -19,7 +19,9 @@ fn main() -> iced::Result {
              screens: login-phone login-code login-password api-setup chats search reply media settings\n\
                       folders folder-manager folder-editor folder-picker chat-menu\n\
                       info info-files info-links info-music info-voice info-gifs\n\
-             env: FERROGRAM_API_ID, FERROGRAM_API_HASH, FERRO_THEME=light, FERRO_TRACE_STARTUP=1"
+                      update-banner update-settings\n\
+             env: FERROGRAM_API_ID, FERROGRAM_API_HASH, FERRO_THEME=light, FERRO_TRACE_STARTUP=1,\n\
+                  FERRO_UPDATE_FORCE=1 (update checks in debug/mock builds)"
         );
         return Ok(());
     }

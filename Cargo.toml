@@ -1,10 +1,10 @@
 [package]
 name = "ferrogram"
-version = "0.11.0"
+version = "0.11.1"
 edition = "2024"
 license = "MIT"
 description = "Lightweight native Telegram desktop client written in Rust (unofficial)"
-repository = "https://github.com/Dasemu/Ferrogram"
+repository = "https://github.com/FerroApps/Ferrogram"
 publish = false
 
 [dependencies]
@@ -48,6 +48,12 @@ opus = "0.3"
 cpal = "0.16"
 webrtc-util = { version = "0.11", default-features = false, features = ["conn"] }
 audiopus_sys = { version = "0.2", features = ["static"] }
+# Updater: small blocking HTTPS client on the rustls (ring) already in the tree; Ferrogram had no HTTP client.
+ureq = { version = "3", default-features = false, features = ["rustls"] }
+# Updater: read release tarballs (entries checked one by one, never `unpack`).
+tar = { version = "0.4", default-features = false }
+# Updater: gunzip release tarballs (already in the tree via grammers and png).
+flate2 = "1"
 
 [dev-dependencies]
 tempfile = "3"

@@ -354,3 +354,76 @@ colours chosen by `id % 7`.
   per call. `ui/call.rs`: modal call panel and the in-call bar.
 * `mock_call.rs`: fake call server whose remote peer runs the real engine on
   loopback with a test tone (`--mock` calls connect; `tests/call_flow.rs`).
+
+### 11.8 Updates
+
+The in-app updater lives in `src/update/` (no iced types) and is driven by
+`app/updates.rs`; the bar and the Settings section are in `ui/update.rs`.
+
+* **Check** (`update/check.rs`, `update/http.rs`): one anonymous
+  `GET https://api.github.com/repos/FerroApps/Ferrogram/releases/latest`
+  with `Accept: application/vnd.github+json`, `User-Agent: ferrogram/<ver>`
+  and `If-None-Match` (ETag and last release cached in
+  `<cache>/update-check.json`). No account data, telemetry or machine id.
+  403/429 = rate limited: timed checks fail silently, a manual check says so.
+  Drafts, pre-releases and non-semver tags are ignored; the version compare
+  is a strict semver triple (`update/version.rs`) against `CARGO_PKG_VERSION`.
+  `FERRO_RELEASE_API` replaces the whole "latest" URL (as in `install.sh`)
+  and then also allows `http://` to loopback, for tests.
+* **Schedule** (`update/schedule.rs`): 10–20 s after startup, then every
+  6 h ± 30 min (one chain of delayed `Task`s, invalidated by a generation
+  counter), also while hidden in the tray. Never in `--mock`, `--screenshot`
+  or debug builds unless `FERRO_UPDATE_FORCE=1`. The "Check for updates
+  automatically" switch (`settings.ini` `check_updates`) stops the timed
+  checks; "Check for updates" in Settings always works (not in mock mode).
+* **Banner**: "Ferrogram X.Y.Z is available" [Update] [Release notes] [x].
+  [x] stores the version (`settings.ini` `update_dismissed`); only a newer
+  release shows the bar again. Never modal.
+* **Install method** (`update/detect.rs`, pure `detect(&Probe)`), from the
+  canonicalised `current_exe()`:
+  * `install.sh` (`${XDG_BIN_HOME:-~/.local/bin}/ferrogram` and
+    `${XDG_DATA_HOME:-~/.local/share}/ferrogram/installed-version`, bin dir
+    writable): self-update.
+  * `cargo install` (`${CARGO_HOME:-~/.cargo}/bin/ferrogram`): never
+    self-updated; the bar shows `cargo install --git
+    https://github.com/FerroApps/Ferrogram --locked --force` (copy button).
+  * Flatpak, AppImage, a cargo `target/` dir, a read-only install.sh folder
+    or any other path (`/usr/bin`, distro package): notify only, the button
+    opens the release page.
+  Ferrogram ships Linux x86_64 only; other platforms are notify-only.
+* **Install** (`update/install.rs`, the same paths and steps as
+  `install.sh`): download the tarball (≤ 300 MB, through redirects that must
+  stay on `github.com`, `objects.githubusercontent.com` or
+  `release-assets.githubusercontent.com`, HTTPS only) and its `.sha256` into
+  `<bin dir>/.ferrogram-update.<pid>/` (same file system), verify the
+  SHA-256, extract with `update/extract.rs` (regular files and directories
+  only, no absolute paths or `..`, one top-level directory, size and entry
+  caps), then stage `.ferrogram.new.<pid>` (0755), the rewritten desktop
+  entry, the icon and `installed-version` next to their targets and rename
+  them together (`commit`: the old files are hard-linked aside and restored
+  if a rename fails). Then `update-desktop-database` & co., like
+  `install.sh`. Any failure leaves the install untouched and the temp dir is
+  removed. Progress (downloading / verifying / installing) shows in the bar
+  and in Settings; the download is cancellable.
+* **Threads**: the check and the install run on plain `std::thread`s started
+  when iced runs the task (a dropped task never touches the network), never
+  on tokio's blocking pool, which the runtime would wait for at exit. Quit
+  sets the download's cancel flag; nothing delays the quit path.
+* **Restart**: "Restart to finish" [Restart now] [Later]. Restart releases
+  the single-instance socket (`instance::release`: `shutdown()` wakes the
+  accept loop, which drops the listener), starts the installed binary with
+  the same arguments (plus `--minimized` when the window is hidden, in its
+  own process group) and quits through the normal path. If the spawn fails
+  the socket is taken back. Later: the new version runs on the next start.
+* **Integrity**: the SHA-256 comes from the same release, so it only proves
+  the file arrived intact. Releases are not signed yet; signing them
+  (minisign or cosign, verified here with an embedded public key) needs a CI
+  secret the maintainer has to add.
+* **Logging**: `tracing`, URLs without query strings (GitHub's asset
+  redirects carry signed tokens there); ureq errors are reduced to a kind.
+* Tests: unit tests per module (version compare, asset selection, install
+  method detection, dismissal persistence in `prefs`, schedule bounds and
+  gating, safe-extract rejections, checksum mismatch, commit rollback);
+  `tests/updater.rs` runs check + install against a local HTTP server and a
+  temp install.sh layout; `tests/update_flow.rs` drives the real `App`;
+  `tests/instance_release.rs` covers the socket hand-off.

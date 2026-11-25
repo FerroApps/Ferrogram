@@ -7,6 +7,8 @@
 
 use std::path::Path;
 
+use crate::update::Version;
+
 /// Global "mute notifications" switch (tray menu).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum MuteState {
@@ -79,6 +81,11 @@ pub struct Prefs {
     /// Start with no window, only the tray icon.
     pub start_minimized: bool,
     pub mute: MuteState,
+    /// "Check for updates automatically" (default on).
+    pub check_updates: bool,
+    /// The update banner the user closed: not shown again for this version
+    /// (a newer release shows it again).
+    pub update_dismissed: Option<Version>,
 }
 
 impl Default for Prefs {
@@ -87,6 +94,8 @@ impl Default for Prefs {
             close_to_tray: true,
             start_minimized: false,
             mute: MuteState::Off,
+            check_updates: true,
+            update_dismissed: None,
         }
     }
 }
@@ -110,6 +119,8 @@ impl Prefs {
                 "close_to_tray" => p.close_to_tray = parse_bool(v).unwrap_or(p.close_to_tray),
                 "start_minimized" => p.start_minimized = parse_bool(v).unwrap_or(p.start_minimized),
                 "notifications_muted" => p.mute = MuteState::parse(v),
+                "check_updates" => p.check_updates = parse_bool(v).unwrap_or(p.check_updates),
+                "update_dismissed" => p.update_dismissed = Version::parse(v),
                 _ => {}
             }
         }
@@ -117,12 +128,17 @@ impl Prefs {
     }
 
     pub fn render(&self) -> String {
-        format!(
-            "close_to_tray = {}\nstart_minimized = {}\nnotifications_muted = {}\n",
+        let mut out = format!(
+            "close_to_tray = {}\nstart_minimized = {}\nnotifications_muted = {}\ncheck_updates = {}\n",
             self.close_to_tray,
             self.start_minimized,
-            self.mute.render()
-        )
+            self.mute.render(),
+            self.check_updates,
+        );
+        if let Some(v) = self.update_dismissed {
+            out.push_str(&format!("update_dismissed = {v}\n"));
+        }
+        out
     }
 
     /// Read `path`; a missing or unreadable file means the defaults.
@@ -161,6 +177,8 @@ mod tests {
             close_to_tray: false,
             start_minimized: true,
             mute: MuteState::Until(1_800_000_000),
+            check_updates: false,
+            update_dismissed: Some(Version::new(0, 12, 3)),
         };
         assert_eq!(Prefs::parse(&p.render()), p);
         let q = Prefs {
@@ -168,6 +186,24 @@ mod tests {
             ..p
         };
         assert_eq!(Prefs::parse(&q.render()), q);
+    }
+
+    #[test]
+    fn dismissed_update_version_persists() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.ini");
+        let p = Prefs {
+            update_dismissed: Some(Version::new(1, 2, 3)),
+            ..Prefs::default()
+        };
+        p.save(&path).unwrap();
+        let back = Prefs::load(&path);
+        assert_eq!(back.update_dismissed, Some(Version::new(1, 2, 3)));
+        assert!(back.check_updates, "default on");
+        // A bad value means "nothing dismissed", never a startup failure.
+        let q = Prefs::parse("update_dismissed = 1.2\ncheck_updates = no");
+        assert_eq!(q.update_dismissed, None);
+        assert!(!q.check_updates);
     }
 
     #[test]
