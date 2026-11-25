@@ -2,6 +2,17 @@
 
 Things learned while building Ferrogram, newest first.
 
+- **A self-updater must hand off the single-instance lock.** If the new process
+  starts while the old one still owns the socket, it just shows the old window and
+  exits. `shutdown()` on the listening socket wakes the blocked `accept()`, so the
+  thread can drop the listener before the new binary is spawned.
+- **Spawn work threads inside the task's future, not when building the task.**
+  Tests drive `update()` and drop the returned `Task`; a thread started eagerly
+  would hit the network anyway.
+- **Never follow redirects blindly for downloads.** Follow them by hand and check
+  every hop's host (GitHub sends assets to its storage hosts with signed query
+  strings, which must not end up in logs either).
+
 - **Check what the official apps register before choosing a call protocol.**
   libtgvoip (2.4.4) is still the fallback string in Telegram Desktop but no
   app registers it any more; the server picks one version from both lists,
