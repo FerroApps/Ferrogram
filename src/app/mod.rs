@@ -11,6 +11,7 @@ pub mod message;
 pub mod phone;
 pub mod screenshot;
 pub mod state;
+mod updates;
 
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
@@ -202,6 +203,8 @@ pub struct App {
     pub autostart: bool,
     /// The window's scale factor (1.0 until the window reports it).
     pub scale: f32,
+    /// In-app updates (banner, Settings section; `crate::update`).
+    pub updater: crate::update::state::Updater,
 }
 
 /// Requests from outside the window (see `remote`).
@@ -349,6 +352,7 @@ impl App {
             thumb_q: info::ThumbQueue::default(),
             autostart,
             scale: 1.0,
+            updater: Self::new_updater(&config, &prefs),
             config,
         };
 
@@ -409,7 +413,11 @@ impl App {
         }
         // Cached avatars from disk are on screen with the first frame.
         let avatars = app.fetch_avatars();
-        (app, Task::batch([open, tray, task, script, avatars]))
+        let updates = app.boot_updater();
+        (
+            app,
+            Task::batch([open, tray, task, script, avatars, updates]),
+        )
     }
 
     // ------------------------------------------------- window and tray
@@ -501,6 +509,9 @@ impl App {
 
     /// Stop the tray service, then end the process.
     fn quit(&mut self) -> Task<Message> {
+        // A download in progress stops at its next chunk (its thread never
+        // holds up the exit).
+        self.updater.cancel();
         match self.tray.take() {
             Some(tray) => {
                 Task::future(async move { tray.shutdown().await }).then(|()| iced::exit())
@@ -2116,6 +2127,15 @@ impl App {
                 self.main_menu = !self.main_menu;
                 Task::none()
             }
+            ui @ (Ui::UpdateCheckDue(_)
+            | Ui::UpdateCheckNow
+            | Ui::UpdateInstall
+            | Ui::UpdateCancel
+            | Ui::UpdateDismiss
+            | Ui::UpdateRestart
+            | Ui::UpdateReleaseNotes
+            | Ui::UpdateCopyCommand
+            | Ui::SetCheckUpdates(_)) => self.update_updates(ui),
             Ui::DismissToast => {
                 self.toast = None;
                 Task::none()
@@ -3216,6 +3236,10 @@ impl App {
                     Task::batch([persist, self.on_error(e)])
                 }
             },
+            done @ (Done::UpdateMethod(_)
+            | Done::UpdateChecked { .. }
+            | Done::UpdateProgress(_)
+            | Done::UpdateInstalled(_)) => self.on_update_done(done),
             Done::LinkOpened(Ok(())) => Task::none(),
             Done::LinkOpened(Err(e)) => {
                 warn!(error = %e, "could not open link");

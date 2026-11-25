@@ -48,6 +48,10 @@ pub enum ScreenshotTarget {
     CallActive,
     /// A connected call, minimised to the bar above the chat.
     CallBar,
+    /// The "new version available" bar.
+    UpdateBanner,
+    /// Settings with the Updates section offering an update.
+    UpdateSettings,
 }
 
 impl ScreenshotTarget {
@@ -83,6 +87,8 @@ impl ScreenshotTarget {
             "call-outgoing" => Self::CallOutgoing,
             "call-active" => Self::CallActive,
             "call-bar" => Self::CallBar,
+            "update-banner" => Self::UpdateBanner,
+            "update-settings" => Self::UpdateSettings,
             _ => return None,
         })
     }

@@ -183,6 +183,22 @@ pub enum Ui {
     SetStartMinimized(bool),
     SetAutostart(bool),
     DismissToast,
+    // updates (src/update, app/updates.rs)
+    /// A timed check is due (only acts for the current schedule generation).
+    UpdateCheckDue(u64),
+    /// "Check for updates" in Settings.
+    UpdateCheckNow,
+    /// [Update] / "Update now": download and install (install.sh only).
+    UpdateInstall,
+    UpdateCancel,
+    /// [x] on the banner, or "Later" after an install.
+    UpdateDismiss,
+    UpdateRestart,
+    /// "Release notes" / "Open release page".
+    UpdateReleaseNotes,
+    /// Copy the `cargo install` command.
+    UpdateCopyCommand,
+    SetCheckUpdates(bool),
     // window / keyboard
     Focus(bool),
     Escape,
@@ -347,6 +363,14 @@ pub enum Done {
     AutostartSet(Result<bool, Error>),
     Screenshot(iced::window::Screenshot),
     ScreenshotSaved,
+    // updates
+    UpdateMethod(crate::update::InstallMethod),
+    UpdateChecked {
+        manual: bool,
+        result: Result<Option<crate::update::check::Release>, crate::update::UpdateError>,
+    },
+    UpdateProgress(crate::update::install::Progress),
+    UpdateInstalled(Result<crate::update::Version, crate::update::UpdateError>),
     // one-to-one calls
     CallConfig(Result<crate::net::calls::CallConfig, Error>),
     CallPlaced(Result<Box<(crate::app::call::DhHalf, crate::net::calls::PhoneCall)>, Error>),

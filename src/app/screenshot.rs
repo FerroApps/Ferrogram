@@ -24,6 +24,14 @@ fn ui(u: Ui) -> Message {
     Message::Ui(u)
 }
 
+/// A check result announcing the mock release.
+fn update_found() -> Message {
+    Message::Done(Done::UpdateChecked {
+        manual: false,
+        result: Ok(Some(crate::mock::mock_release())),
+    })
+}
+
 /// Timed steps for each screen; the last one captures the window.
 pub fn script(config: &Config) -> Task<Message> {
     let Some((target, _)) = config.screenshot else {
@@ -153,6 +161,15 @@ pub fn script(config: &Config) -> Task<Message> {
         ],
         ScreenshotTarget::CallOutgoing => calls::outgoing(),
         ScreenshotTarget::CallActive => calls::active(),
+        ScreenshotTarget::UpdateBanner => vec![
+            (400, ui(Ui::SelectChat(ALICE))),
+            (900, update_found()),
+        ],
+        ScreenshotTarget::UpdateSettings => vec![
+            (400, ui(Ui::SelectChat(ALICE))),
+            (900, update_found()),
+            (950, ui(Ui::OpenSettings)),
+        ],
         ScreenshotTarget::CallBar => {
             let mut s = calls::active();
             s.push((1100, ui(Ui::CallExpand(false))));
