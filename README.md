@@ -12,17 +12,26 @@ modelled on Telegram Desktop's dark theme.
 ## Install / update
 
 Linux x86_64, no root needed. One command installs and updates (it downloads
-the latest [release](https://github.com/Dasemu/Ferrogram/releases/latest), checks
+the latest [release](https://github.com/FerroApps/Ferrogram/releases/latest), checks
 its SHA-256 and puts the binary, menu entry and icon under `~/.local`):
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/Dasemu/Ferrogram/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/FerroApps/Ferrogram/main/install.sh | sh
 ```
+
+After that, Ferrogram keeps itself up to date: when a new release is out a
+bar at the top offers to install it (it downloads the same tarball, checks
+its SHA-256 and replaces the files `install.sh` installed), and Settings →
+Updates can check on demand or turn the automatic checks off. A copy
+installed with `cargo install` only shows the command to update; other
+installs (distro packages, custom paths) link to the release page. The check
+is one anonymous request to GitHub's API every few hours, with no account
+data. Releases are verified by checksum but not signed yet.
 
 Uninstall (removes only what the installer added, never your account data):
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/Dasemu/Ferrogram/main/install.sh | sh -s -- --uninstall
+curl -fsSL https://raw.githubusercontent.com/FerroApps/Ferrogram/main/install.sh | sh -s -- --uninstall
 ```
 
 Manual alternative: download `ferrogram-vX.Y.Z-linux-x86_64.tar.gz` and its
