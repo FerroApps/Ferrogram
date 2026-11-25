@@ -11,6 +11,7 @@ pub mod login;
 pub mod settings;
 pub mod sidebar;
 pub mod theme;
+pub mod update;
 pub mod widgets;
 
 use iced::widget::{container, opaque, row, stack, text};
@@ -19,9 +20,19 @@ use iced::{Element, Length};
 use crate::app::{App, Message};
 
 pub fn view(app: &App) -> Element<'_, Message> {
-    if !app.shows_main() {
-        return login::view(app);
+    let content = if app.shows_main() {
+        main_view(app)
+    } else {
+        login::view(app)
+    };
+    // The update bar sits above everything, like the official client's.
+    match update::banner(app) {
+        Some(bar) => iced::widget::column![bar, content].into(),
+        None => content,
     }
+}
+
+fn main_view(app: &App) -> Element<'_, Message> {
     let p = app.theme.palette;
     let divider = container(iced::widget::Space::new().width(1).height(Length::Fill))
         .style(theme::fill(p.border));

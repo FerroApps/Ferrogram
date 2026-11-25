@@ -1379,8 +1379,8 @@ pub fn mock_shared(chat: ChatId, kind: SharedKind) -> Vec<SharedItem> {
             "wikipedia.org",
         ),
         (
-            "https://github.com/Dasemu/Ferrogram",
-            "Dasemu/Ferrogram",
+            "https://github.com/FerroApps/Ferrogram",
+            "FerroApps/Ferrogram",
             "github.com",
         ),
     ];
@@ -1535,4 +1535,30 @@ pub fn encode_png(w: u32, h: u32, rgba: &[u8]) -> Result<Vec<u8>> {
             .map_err(|_| Error::Io("png data".into()))?;
     }
     Ok(out)
+}
+
+/// A release one minor version ahead of this build (update screenshots and
+/// tests; never fetched).
+pub fn mock_release() -> crate::update::check::Release {
+    let c = crate::update::Version::current();
+    let v = crate::update::Version::new(c.major, c.minor + 1, 0);
+    let base = format!("https://github.com/{}/releases", crate::update::REPO);
+    let name = format!("ferrogram-v{v}-linux-x86_64.tar.gz");
+    crate::update::check::Release {
+        version: v,
+        tag: format!("v{v}"),
+        page: format!("{base}/tag/v{v}"),
+        assets: vec![
+            crate::update::check::Asset {
+                url: format!("{base}/download/v{v}/{name}"),
+                name: name.clone(),
+                size: 30 * 1024 * 1024,
+            },
+            crate::update::check::Asset {
+                url: format!("{base}/download/v{v}/{name}.sha256"),
+                name: format!("{name}.sha256"),
+                size: 100,
+            },
+        ],
+    }
 }

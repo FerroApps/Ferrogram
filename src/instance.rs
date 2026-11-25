@@ -58,9 +58,12 @@ pub fn socket_name(app_id: &str, uid: u32, mock: bool) -> String {
 #[cfg(target_os = "linux")]
 mod imp {
     use std::io::{BufRead, BufReader, Read, Write};
+    use std::os::fd::AsRawFd;
     use std::os::linux::net::SocketAddrExt;
     use std::os::unix::net::{SocketAddr, UnixListener, UnixStream};
-    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::mpsc::{Receiver, channel};
+    use std::sync::{Arc, Mutex};
     use std::time::Duration;
 
     use super::{Ask, Role, parse_request};
@@ -74,13 +77,25 @@ mod imp {
         std::fs::metadata("/proc/self").map_or(0, |m| m.uid())
     }
 
+    /// The socket we own, so [`release`] can give it up (restart after an
+    /// update).
+    struct Held {
+        fd: std::os::fd::RawFd,
+        stop: Arc<AtomicBool>,
+        done: Receiver<()>,
+        name: String,
+        sink: Arc<dyn Fn(Remote) + Send + Sync>,
+    }
+
+    static HELD: Mutex<Option<Held>> = Mutex::new(None);
+
     pub fn acquire(name: &str, ask: Ask, sink: Arc<dyn Fn(Remote) + Send + Sync>) -> Role {
         let Ok(addr) = SocketAddr::from_abstract_name(name.as_bytes()) else {
             return Role::Unlocked;
         };
         for _ in 0..3 {
             match UnixListener::bind_addr(&addr) {
-                Ok(listener) => return serve(listener, sink),
+                Ok(listener) => return serve(listener, name, sink),
                 Err(e) if e.kind() == std::io::ErrorKind::AddrInUse => match notify(&addr, ask) {
                     Ok(()) => return Role::Secondary,
                     Err(e) => {
@@ -99,19 +114,66 @@ mod imp {
         Role::Unlocked
     }
 
-    fn serve(listener: UnixListener, sink: Arc<dyn Fn(Remote) + Send + Sync>) -> Role {
+    fn serve(listener: UnixListener, name: &str, sink: Arc<dyn Fn(Remote) + Send + Sync>) -> Role {
+        let fd = listener.as_raw_fd();
+        let stop = Arc::new(AtomicBool::new(false));
+        let (done_tx, done) = channel();
+        let (thread_stop, thread_sink) = (stop.clone(), sink.clone());
         let spawned = std::thread::Builder::new()
             .name("instance".into())
             .spawn(move || {
-                for stream in listener.incoming().flatten() {
-                    handle(stream, sink.as_ref());
+                loop {
+                    match listener.accept() {
+                        Ok((stream, _)) => handle(stream, thread_sink.as_ref()),
+                        Err(_) if thread_stop.load(Ordering::SeqCst) => break,
+                        Err(_) => std::thread::sleep(Duration::from_millis(50)),
+                    }
                 }
+                // Dropping the listener frees the name for the next process.
+                drop(listener);
+                let _ = done_tx.send(());
             });
-        if spawned.is_ok() {
-            Role::Primary
-        } else {
-            Role::Unlocked
+        if spawned.is_err() {
+            return Role::Unlocked;
         }
+        if let Ok(mut held) = HELD.lock() {
+            *held = Some(Held {
+                fd,
+                stop,
+                done,
+                name: name.to_owned(),
+                sink,
+            });
+        }
+        Role::Primary
+    }
+
+    /// What [`release`] gave up, to take it back if the restart fails.
+    pub struct Released {
+        pub name: String,
+        pub sink: Arc<dyn Fn(Remote) + Send + Sync>,
+    }
+
+    /// Give up the instance socket (before starting the updated binary, so
+    /// it becomes the primary instead of showing our window). Waits up to a
+    /// second for the name to be free.
+    pub fn release() -> Option<Released> {
+        let held = HELD.lock().ok()?.take()?;
+        held.stop.store(true, Ordering::SeqCst);
+        // SAFETY: `fd` belongs to the listener the instance thread still
+        // owns (it only closes it after seeing `stop`); shutdown() wakes its
+        // blocking accept() with an error.
+        unsafe {
+            libc::shutdown(held.fd, libc::SHUT_RDWR);
+        }
+        let freed = held.done.recv_timeout(Duration::from_secs(1)).is_ok();
+        if !freed {
+            tracing::warn!("instance socket did not close in time");
+        }
+        Some(Released {
+            name: held.name,
+            sink: held.sink,
+        })
     }
 
     fn handle(mut stream: UnixStream, sink: &(dyn Fn(Remote) + Send + Sync)) {
@@ -148,7 +210,7 @@ mod imp {
 }
 
 #[cfg(target_os = "linux")]
-pub use imp::{acquire, current_uid};
+pub use imp::{Released, acquire, current_uid, release};
 
 /// Not implemented outside Linux: every launch is its own instance.
 #[cfg(not(target_os = "linux"))]
@@ -163,6 +225,18 @@ pub fn acquire(
 #[cfg(not(target_os = "linux"))]
 pub fn current_uid() -> u32 {
     0
+}
+
+/// What `release` gave up (nothing outside Linux).
+#[cfg(not(target_os = "linux"))]
+pub struct Released {
+    pub name: String,
+    pub sink: std::sync::Arc<dyn Fn(Remote) + Send + Sync>,
+}
+
+#[cfg(not(target_os = "linux"))]
+pub fn release() -> Option<Released> {
+    None
 }
 
 #[cfg(test)]
